@@ -1,0 +1,135 @@
+{
+  "version": 3,
+  "name": "news-gateway",
+  "port": 8081,
+  "timeout": "3s",
+  "cache_ttl": "300s",
+  "endpoints": [
+    {
+      "endpoint": "/api/v1/sign-up",
+      "method": "POST",
+      "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/sign-up" }]
+    },
+    {
+      "endpoint": "/api/v1/sign-up/confirm",
+      "method": "POST",
+      "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/sign-up/confirm" }]
+    },
+    {
+      "endpoint": "/api/v1/sign-up/resend",
+      "method": "POST",
+      "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/sign-up/resend" }]
+    },
+    {
+      "endpoint": "/api/v1/sign-in",
+      "method": "POST",
+      "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/sign-in" }]
+    },
+    {
+      "endpoint": "/api/v1/auth/{provider}",
+      "method": "POST",
+      "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/auth/{provider}" }]
+    },
+    {
+      "endpoint": "/api/v1/forgot-password",
+      "method": "POST",
+      "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/forgot-password" }]
+    },
+    {
+      "endpoint": "/api/v1/forgot-password/resend",
+      "method": "POST",
+      "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/forgot-password/resend" }]
+    },
+    {
+      "endpoint": "/api/v1/reset-password",
+      "method": "POST",
+      "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/reset-password" }]
+    },
+
+  
+    {
+      "endpoint": "/api/v1/user",
+      "method": "GET",
+      "extra_config": {
+        "github_com/devopsfaith/krakend-jose/validator": {
+          "alg": "HS256",
+          "shared_secret": "super-secret",
+          "propagate_claims": [["sub","X-User-Id"],["role","X-User-Role"],["sid","X-Session-Id"]]
+        }
+      },
+      "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/user" }]
+    },
+    {
+      "endpoint": "/api/v1/user",
+      "method": "PATCH",
+      "extra_config": {
+        "github_com/devopsfaith/krakend-jose/validator": {
+          "alg": "HS256",
+          "shared_secret": "super-secret",
+          "propagate_claims": [["sub","X-User-Id"],["role","X-User-Role"],["sid","X-Session-Id"]]
+        }
+      },
+      "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/user" }]
+    },
+    {
+      "endpoint": "/api/v1/user",
+      "method": "DELETE",
+      "extra_config": {
+        "github_com/devopsfaith/krakend-jose/validator": {
+          "alg": "HS256",
+          "shared_secret": "super-secret",
+          "propagate_claims": [["sub","X-User-Id"],["role","X-User-Role"],["sid","X-Session-Id"]]
+        }
+      },
+      "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/user" }]
+    },
+    {
+      "endpoint": "/api/v1/user/devices",
+      "method": "GET",
+      "extra_config": {
+        "github_com/devopsfaith/krakend-jose/validator": {
+          "alg": "HS256",
+          "shared_secret": "super-secret",
+          "propagate_claims": [["sub","X-User-Id"],["role","X-User-Role"],["sid","X-Session-Id"]]
+        }
+      },
+      "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/user/devices" }]
+    },
+    {
+      "endpoint": "/api/v1/user/devices/{device_id}",
+      "method": "DELETE",
+      "extra_config": {
+        "github_com/devopsfaith/krakend-jose/validator": {
+          "alg": "HS256",
+          "shared_secret": "super-secret",
+          "propagate_claims": [["sub","X-User-Id"],["role","X-User-Role"],["sid","X-Session-Id"]]
+        }
+      },
+      "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/user/devices/{device_id}" }]
+    },
+    {
+      "endpoint": "/api/v1/user/devices/others",
+      "method": "DELETE",
+      "extra_config": {
+        "github_com/devopsfaith/krakend-jose/validator": {
+          "alg": "HS256",
+          "shared_secret": "super-secret",
+          "propagate_claims": [["sub","X-User-Id"],["role","X-User-Role"],["sid","X-Session-Id"]]
+        }
+      },
+      "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/user/devices/others" }]
+    },
+    {
+      "endpoint": "/api/v1/session",
+      "method": "DELETE",
+      "extra_config": {
+        "github_com/devopsfaith/krakend-jose/validator": {
+          "alg": "HS256",
+          "shared_secret": "super-secret",
+          "propagate_claims": [["sub","X-User-Id"],["role","X-User-Role"],["sid","X-Session-Id"]]
+        }
+      },
+      "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/session" }]
+    }
+  ]
+}

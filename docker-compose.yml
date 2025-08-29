@@ -1,0 +1,79 @@
+services:
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: news_user
+      POSTGRES_PASSWORD: news_pass
+      POSTGRES_DB: news_auth
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U news_user -d news_auth"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+
+
+  migrate:
+    image: migrate/migrate:v4.17.1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/migrations:ro
+    entrypoint: >
+      sh -c 'migrate -path=/migrations
+      -database postgres://news_user:news_pass@postgres:5432/news_auth?sslmode=disable up || true'
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      APP_ENV: docker
+      HTTP_ADDR: ":8080"
+      PG_DSN: "postgres://news_user:news_pass@postgres:5432/news_auth?sslmode=disable"
+      JWT_SECRET: "super-secret"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    expose: ["8080"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  krakend:
+    image: krakend:2.10
+    depends_on:
+      api:
+        condition: service_healthy
+    ports: ["8081:8081"]
+    volumes:
+      - ./krakend.json:/etc/krakend/krakend.json:ro
+    command: ["run", "-c", "/etc/krakend/krakend.json"]
+
+volumes:
+  pgdata:
