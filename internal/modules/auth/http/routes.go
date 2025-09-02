@@ -25,10 +25,7 @@ type Module struct {
 	mailer *notify.Mailer // << добавили
 }
 
-func (m *Module) WithMailer(ma *notify.Mailer) *Module {
-	m.mailer = ma
-	return m
-}
+func (m *Module) WithMailer(n *notify.Mailer) *Module { m.mailer = n; return m }
 
 func NewModule() *Module {
 	return &Module{
@@ -58,9 +55,9 @@ func (m *Module) Register(r fiber.Router) {
 	jwtMgr := security.NewJWTManager(string(m.jwtSecret), m.accessTTL)
 
 	// -------- public --------
-	r.Post("/sign-up", SignUpHandler(m.userRepo, m.codeRepo))
+	r.Post("/sign-up", SignUpHandler(m.userRepo, m.codeRepo, m.mailer))
+	r.Post("/sign-up/resend", SignUpResendHandler(m.userRepo, m.codeRepo, m.mailer))
 	r.Post("/sign-up/confirm", SignUpConfirmHandler(m.userRepo, m.codeRepo))
-	r.Post("/sign-up/resend", SignUpResendHandler(m.userRepo, m.codeRepo))
 	r.Post("/sign-in", SignInHandler(m.userRepo, m.sessionRepo, jwtMgr))
 	r.Post("/forgot-password", ForgotPasswordHandler(m.userRepo, m.codeRepo))
 	r.Post("/forgot-password/resend", ForgotPasswordResendHandler(m.userRepo, m.codeRepo))
@@ -68,6 +65,7 @@ func (m *Module) Register(r fiber.Router) {
 	// OAuth провайдер (один раз, без дубликатов)
 	r.Post("/auth/:provider", OAuthSignInHandler(m.userRepo, m.sessionRepo, jwtMgr))
 	r.Post("/refresh", RefreshHandler(m.sessionRepo, jwtMgr))
+	r.Get("/debug/send-mail", DebugSendMailHandler(m.mailer))
 
 	// -------- protected --------
 	protected := r.Group("", plathttp.JWTAuth(m.jwtSecret))
@@ -82,9 +80,9 @@ func (m *Module) Register(r fiber.Router) {
 	// -------- совместимость под /auth/* --------
 	auth := r.Group("/auth")
 	auth.Get("/ping", func(c *fiber.Ctx) error { return c.JSON(fiber.Map{"module": "auth", "ok": true}) })
-	auth.Post("/sign-up", SignUpHandler(m.userRepo, m.codeRepo))
+	auth.Post("/sign-up", SignUpHandler(m.userRepo, m.codeRepo, m.mailer))
 	auth.Post("/sign-up/confirm", SignUpConfirmHandler(m.userRepo, m.codeRepo))
-	auth.Post("/sign-up/resend", SignUpResendHandler(m.userRepo, m.codeRepo))
+	auth.Post("/sign-up/resend", SignUpResendHandler(m.userRepo, m.codeRepo, m.mailer))
 	auth.Post("/sign-in", SignInHandler(m.userRepo, m.sessionRepo, jwtMgr))
 	auth.Post("/forgot-password", ForgotPasswordHandler(m.userRepo, m.codeRepo))
 	auth.Post("/forgot-password/resend", ForgotPasswordResendHandler(m.userRepo, m.codeRepo))
@@ -92,7 +90,6 @@ func (m *Module) Register(r fiber.Router) {
 	auth.Post("/refresh", RefreshHandler(m.sessionRepo, jwtMgr))
 	// тут НЕ дублируем /:provider второй раз
 	authProtected := auth.Group("", plathttp.JWTAuth(m.jwtSecret))
-	authProtected.Get("/user/devices", ListDevicesHandler(m.sessionRepo))
 	authProtected.Get("/user/devices", ListDevicesHandler(m.sessionRepo))
 	authProtected.Delete("/user/devices/:device_id", DeleteDeviceHandler(m.sessionRepo))
 	authProtected.Delete("/user/devices/others", DeleteOtherDevicesHandler(m.sessionRepo))

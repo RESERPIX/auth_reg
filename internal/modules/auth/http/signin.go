@@ -1,6 +1,7 @@
 package http
 
 import (
+	"log"
 	"strings"
 	"time"
 
@@ -103,6 +104,7 @@ func SignInHandler(userRepo domain.UserRepo, sessions domain.SessionRepo, jwtMgr
 		}
 		sess, err := sessions.Create(s) // ← важный шаг: сначала создаём сессию
 		if err != nil {
+			log.Printf("create session error: %v", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 				"error_code": "SERVER_ERROR",
 				"message":    "Не удалось создать сессию",

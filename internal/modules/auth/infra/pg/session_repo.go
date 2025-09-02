@@ -15,8 +15,8 @@ func NewSessionRepo(db *pgxpool.Pool) *SessionRepo { return &SessionRepo{db: db}
 func (r *SessionRepo) Create(s domain.Session) (*domain.Session, error) {
 	ctx := context.Background()
 	q := `INSERT INTO sessions (user_id, refresh_token_hash, device_name, ip_address, user_agent)
-	      VALUES ($1, $2, $3, $4, $5)
-	      RETURNING id, user_id, refresh_token_hash, device_name, ip_address, user_agent, last_active, created_at, revoked_at`
+		  VALUES ($1, $2, $3, $4, $5)
+		  RETURNING id, user_id, refresh_token_hash, device_name, ip_address::text, user_agent, last_active, created_at, revoked_at`
 	row := r.db.QueryRow(ctx, q, s.UserID, s.RefreshTokenHash, s.DeviceName, s.IPAddress, s.UserAgent)
 	var out domain.Session
 	if err := row.Scan(&out.ID, &out.UserID, &out.RefreshTokenHash, &out.DeviceName, &out.IPAddress, &out.UserAgent, &out.LastActive, &out.CreatedAt, &out.RevokedAt); err != nil {
@@ -32,8 +32,8 @@ func (r *SessionRepo) ListByUser(userID string, page, limit int) ([]domain.Sessi
 		return nil, 0, err
 	}
 	offset := (page - 1) * limit
-	rows, err := r.db.Query(ctx, `SELECT id, user_id, refresh_token_hash, device_name, ip_address, user_agent, last_active, created_at, revoked_at
-	                               FROM sessions WHERE user_id=$1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+	rows, err := r.db.Query(ctx, `SELECT id, user_id, refresh_token_hash, device_name, ip_address::text, user_agent, last_active, created_at, revoked_at
+							   FROM sessions WHERE user_id=$1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
 		userID, limit, offset)
 	if err != nil {
 		return nil, 0, err
@@ -76,8 +76,8 @@ func (r *SessionRepo) RevokeAll(userID string) (int, error) {
 
 func (r *SessionRepo) FindByRefreshHash(hash string) (*domain.Session, error) {
 	row := r.db.QueryRow(context.Background(),
-		`SELECT id, user_id, refresh_token_hash, device_name, ip_address, user_agent,
-		        last_active, created_at, revoked_at, expires_at
+		`SELECT id, user_id, refresh_token_hash, device_name, ip_address::text, user_agent,
+				last_active, created_at, revoked_at, expires_at
 		   FROM sessions WHERE refresh_token_hash=$1`, hash)
 	var s domain.Session
 	if err := row.Scan(&s.ID, &s.UserID, &s.RefreshTokenHash, &s.DeviceName,

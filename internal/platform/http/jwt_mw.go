@@ -1,6 +1,7 @@
 package http
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -18,6 +19,10 @@ func JWTAuth(secret []byte) fiber.Handler {
 		}
 		tokenStr := strings.TrimPrefix(h, "Bearer ")
 		tok, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+			// Ensure token uses an expected signing method (HMAC family)
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+			}
 			return secret, nil
 		})
 		if err != nil || !tok.Valid {
