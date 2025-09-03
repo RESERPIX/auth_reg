@@ -13,6 +13,10 @@
           "propagate_status_code": true,
           "return_error_details": "enabled"
         }
+        ,
+        "github_com/devopsfaith/krakend/transport/http/server": {
+          "return_error_msg": true
+        }
       },
       "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/sign-up" }]
     },
@@ -216,7 +220,49 @@
         }
       },
       "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/session" }]
+    },
+    {
+  "endpoint": "/api/v1/user/2fa/enable",
+  "method": "POST",
+  "extra_config": {
+    "github_com/devopsfaith/krakend/http": {
+      "propagate_status_code": true,
+      "return_error_details": "enabled"
+    },
+    "github_com/devopsfaith/krakend-jose/validator": {
+      "alg": "HS256",
+      "shared_secret": "super-secret",
+      "propagate_claims": [["sub","X-User-Id"],["role","X-User-Role"],["sid","X-Session-Id"]]
     }
-    
+  },
+  "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/user/2fa/enable" }]
+    },
+  {
+  "endpoint": "/api/v1/sign-in/2fa",
+  "method": "POST",
+  "extra_config": {
+    "github_com/devopsfaith/krakend/http": {
+      "propagate_status_code": true,
+      "return_error_details": "enabled"
+    }
+  },
+  "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/sign-in/2fa" }]
+  },
+  {
+  "endpoint": "/api/v1/user/2fa/disable",
+  "method": "POST",
+  "extra_config": {
+    "github_com/devopsfaith/krakend/http": {
+      "propagate_status_code": true,
+      "return_error_details": "enabled"
+    },
+    "github_com/devopsfaith/krakend-jose/validator": {
+      "alg": "HS256",
+      "shared_secret": "super-secret",
+      "propagate_claims": [["sub","X-User-Id"],["role","X-User-Role"],["sid","X-Session-Id"]]
+    }
+  },
+  "backend": [{ "host": ["http://api:8080"], "url_pattern": "/api/v1/user/2fa/disable" }]
+  }
   ]
 }

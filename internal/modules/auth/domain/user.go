@@ -24,6 +24,7 @@ type User struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	Providers      []string
+	TwoFAEnabled   bool
 }
 
 type CreateUserParams struct {
@@ -46,4 +47,5 @@ type UserRepo interface {
 	GetByID(id string) (*User, error)
 	UpdateProfile(userID string, firstName *string, lastName *string, phone *string) error
 	Delete(id string) error
+	SetTwoFA(userID string, enabled bool) error
 }

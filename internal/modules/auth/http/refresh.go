@@ -14,7 +14,11 @@ type refreshReq struct {
 	DeviceName   string `json:"device_name"`
 }
 
-func RefreshHandler(sessions domain.SessionRepo, jwtMgr *security.JWTManager) fiber.Handler {
+func RefreshHandler(
+	sessions domain.SessionRepo,
+	userRepo domain.UserRepo, // <— добавили
+	jwtMgr *security.JWTManager,
+) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		var req refreshReq
 		if err := c.BodyParser(&req); err != nil || req.RefreshToken == "" {
@@ -26,7 +30,7 @@ func RefreshHandler(sessions domain.SessionRepo, jwtMgr *security.JWTManager) fi
 
 		hash := security.HashToken(req.RefreshToken)
 		s, err := sessions.FindByRefreshHash(hash)
-		if err != nil || s.RevokedAt != nil || time.Now().After(s.ExpiresAt) {
+		if err != nil || s == nil || s.RevokedAt != nil || time.Now().After(s.ExpiresAt) {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"error_code": "INVALID_REFRESH",
 				"message":    "Невалидный или истёкший refresh_token",
@@ -36,13 +40,19 @@ func RefreshHandler(sessions domain.SessionRepo, jwtMgr *security.JWTManager) fi
 		// инвалидируем старый
 		_ = sessions.Revoke(s.ID, s.UserID)
 
-		// генерируем новый refresh
-		rt, _, _ := security.IssueRefresh()
+		// создаём новый refresh → новая сессия
+		rt, _, err := security.IssueRefresh()
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error_code": "SERVER_ERROR", "message": "Не удалось создать refresh",
+			})
+		}
 		rth := security.HashToken(rt)
 		ip := c.IP()
 		ua := c.Get("User-Agent")
 		dev := req.DeviceName
-		newSess, _ := sessions.Create(domain.Session{
+
+		newSess, err := sessions.Create(domain.Session{
 			UserID:           s.UserID,
 			RefreshTokenHash: rth,
 			DeviceName:       &dev,
@@ -50,8 +60,26 @@ func RefreshHandler(sessions domain.SessionRepo, jwtMgr *security.JWTManager) fi
 			UserAgent:        &ua,
 			ExpiresAt:        time.Now().Add(30 * 24 * time.Hour),
 		})
+		if err != nil || newSess == nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error_code": "SERVER_ERROR", "message": "Не удалось создать сессию",
+			})
+		}
 
-		at, exp, _ := jwtMgr.IssueAccess(s.UserID, "journalist", newSess.ID) // роль можно достать из UserRepo, если нужно
+		// достаём роль пользователя
+		u, err := userRepo.GetByID(s.UserID)
+		if err != nil || u == nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error_code": "SERVER_ERROR", "message": "Не удалось получить пользователя",
+			})
+		}
+
+		at, exp, err := jwtMgr.IssueAccess(s.UserID, string(u.Role), newSess.ID)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+				"error_code": "SERVER_ERROR", "message": "Не удалось создать access_token",
+			})
+		}
 
 		return c.JSON(fiber.Map{
 			"message":       "Токены обновлены",

@@ -8,6 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 
 	"auth/internal/modules/auth/domain"
+	"auth/internal/platform/notify"
 	"auth/internal/platform/security"
 )
 
@@ -25,7 +26,14 @@ type signInResp struct {
 	Requires2FA  bool   `json:"requires_2fa"`
 }
 
-func SignInHandler(userRepo domain.UserRepo, sessions domain.SessionRepo, jwtMgr *security.JWTManager) fiber.Handler {
+// Добавим mailer в хендлер через замыкание
+func SignInHandler(
+	userRepo domain.UserRepo,
+	sessions domain.SessionRepo,
+	codeRepo domain.CodeRepo, // ← было VerificationCodeRepo
+	mailer *notify.Mailer, // ← было domain.Mailer
+	jwtMgr *security.JWTManager,
+) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		var req signInReq
 		if err := c.BodyParser(&req); err != nil {
@@ -45,7 +53,7 @@ func SignInHandler(userRepo domain.UserRepo, sessions domain.SessionRepo, jwtMgr
 			})
 		}
 
-		// проверка блокировки
+		// Проверка блокировки
 		if u.IsBlocked {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error_code": "ACCOUNT_BLOCKED",
@@ -53,7 +61,7 @@ func SignInHandler(userRepo domain.UserRepo, sessions domain.SessionRepo, jwtMgr
 			})
 		}
 
-		// проверка подтверждения email
+		// Проверка подтверждения email
 		if !u.EmailConfirmed {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error_code": "EMAIL_NOT_CONFIRMED",
@@ -61,7 +69,7 @@ func SignInHandler(userRepo domain.UserRepo, sessions domain.SessionRepo, jwtMgr
 			})
 		}
 
-		// проверка пароля
+		// Проверка пароля
 		ok, _ := security.CheckPassword(*u.PasswordHash, req.Password)
 		if !ok {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -70,15 +78,51 @@ func SignInHandler(userRepo domain.UserRepo, sessions domain.SessionRepo, jwtMgr
 			})
 		}
 
-		// пока 2FA отключена → всегда false
-		requires2FA := false
-		if requires2FA {
+		// 🔐 Проверка: включена ли 2FA?
+		if u.TwoFAEnabled {
+			code, err := security.RandomDigits(6)
+			if err != nil {
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error_code": "SERVER_ERROR",
+					"message":    "Не удалось сгенерировать код",
+				})
+			}
+
+			// Сохраняем код для последующей проверки
+			err = codeRepo.Save(domain.VerificationCode{
+				UserID:    u.ID,
+				Kind:      domain.Code2FA,
+				Code:      code,
+				ExpiresAt: time.Now().Add(10 * time.Minute),
+				SentTo:    u.Email,
+			})
+			if err != nil {
+				log.Printf("failed to save 2FA code: %v", err)
+				return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+					"error_code": "SERVER_ERROR",
+					"message":    "Не удалось сохранить код подтверждения",
+				})
+			}
+
+			// Отправляем код на email (асинхронно)
+			if mailer != nil {
+				go func() {
+					if err := mailer.Send2FACode(c.Context(), u.Email, code); err != nil {
+						log.Printf("failed to send 2FA email to %s: %v", u.Email, err)
+					}
+				}()
+			}
+
+			// Возвращаем ответ: 2FA требуется, токены не выданы
 			return c.JSON(signInResp{
-				Message:     "Вход успешен",
+				Message:     "Требуется подтверждение двухфакторной аутентификации",
 				Requires2FA: true,
 			})
 		}
 
+		// 🟢 Если 2FA НЕ включена — продолжаем обычный вход
+
+		// Генерируем refresh token
 		rt, _, err := security.IssueRefresh()
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -87,9 +131,7 @@ func SignInHandler(userRepo domain.UserRepo, sessions domain.SessionRepo, jwtMgr
 			})
 		}
 
-		// TODO: сохранить refresh в SessionRepo (in-memory пока не используем)
-
-		// сохраняем сессию
+		// Хешируем refresh token для хранения
 		rth := security.HashToken(rt)
 		ip := c.IP()
 		ua := c.Get("User-Agent")
@@ -102,7 +144,8 @@ func SignInHandler(userRepo domain.UserRepo, sessions domain.SessionRepo, jwtMgr
 			IPAddress:        &ip,
 			UserAgent:        &ua,
 		}
-		sess, err := sessions.Create(s) // ← важный шаг: сначала создаём сессию
+
+		sess, err := sessions.Create(s)
 		if err != nil {
 			log.Printf("create session error: %v", err)
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -111,7 +154,7 @@ func SignInHandler(userRepo domain.UserRepo, sessions domain.SessionRepo, jwtMgr
 			})
 		}
 
-		// 2) теперь выпускаем access-токен с клеймом sid = sess.ID
+		// Генерируем access token с включённым session_id (sid)
 		at, exp, err := jwtMgr.IssueAccess(u.ID, string(u.Role), sess.ID)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -120,6 +163,7 @@ func SignInHandler(userRepo domain.UserRepo, sessions domain.SessionRepo, jwtMgr
 			})
 		}
 
+		// Возвращаем токены
 		return c.JSON(signInResp{
 			Message:      "Вход успешен",
 			AccessToken:  at,

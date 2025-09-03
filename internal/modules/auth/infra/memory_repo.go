@@ -318,3 +318,17 @@ func (r *memUserRepo) UpdatePassword(userID string, newHash string) error {
 	u.UpdatedAt = time.Now().UTC()
 	return nil
 }
+
+// ... в том же файле, где memUserRepo
+func (r *memUserRepo) SetTwoFA(userID string, enabled bool) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	u, ok := r.users[userID]
+	if !ok {
+		return errors.New("not_found")
+	}
+	u.TwoFAEnabled = enabled
+	u.UpdatedAt = time.Now().UTC()
+	return nil
+}

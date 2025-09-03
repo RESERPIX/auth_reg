@@ -93,3 +93,11 @@ func (r *UserRepo) Delete(id string) error {
 	_, err := r.db.Exec(context.Background(), `DELETE FROM users WHERE id=$1`, id)
 	return err
 }
+
+func (r *UserRepo) SetTwoFA(userID string, enabled bool) error {
+    _, err := r.db.Exec(context.Background(),
+        `UPDATE users SET twofa_enabled=$2, updated_at=now() WHERE id=$1`,
+        userID, enabled,
+    )
+    return err
+}

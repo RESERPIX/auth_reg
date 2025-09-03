@@ -150,3 +150,9 @@ func qEncode(s string) string {
 	}
 	return b.String()
 }
+
+func (m *Mailer) Send2FACode(ctx context.Context, to, code string) error {
+	body := fmt.Sprintf(
+		`<h2>Вход в аккаунт</h2><p>Ваш 2FA-код: <b>%s</b></p><p>Код действителен 10 минут.</p>`, code)
+	return m.send(ctx, to, "Код подтверждения входа (2FA)", body)
+}

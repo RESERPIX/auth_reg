@@ -1,6 +1,7 @@
 package http
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/mail"
 	"strings"
@@ -38,11 +39,30 @@ func SignUpHandler(
 ) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		var req signUpReq
-		if err := c.BodyParser(&req); err != nil {
+		// Accept both snake_case and common camelCase keys from clients.
+		raw := c.Body()
+		if len(raw) == 0 {
 			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 				"error_code": "INVALID_FIELDS",
 				"message":    "Некорректные данные",
 			})
+		}
+
+		// quick normalization: map frequent camelCase keys to snake_case
+		replacer := strings.NewReplacer(
+			`"firstName":`, `"first_name":`,
+			`"lastName":`, `"last_name":`,
+			`"privacyAgreement":`, `"privacy_agreement":`,
+		)
+		normalized := []byte(replacer.Replace(string(raw)))
+		if err := json.Unmarshal(normalized, &req); err != nil {
+			// fallback: try BodyParser (may support form data)
+			if err2 := c.BodyParser(&req); err2 != nil {
+				return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+					"error_code": "INVALID_FIELDS",
+					"message":    "Некорректные данные",
+				})
+			}
 		}
 
 		// Валидация

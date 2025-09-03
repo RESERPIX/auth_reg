@@ -6,7 +6,7 @@ type CodeKind string
 
 const (
 	CodeSignup CodeKind = "signup"
-	CodeTwoFA  CodeKind = "twofa"
+	Code2FA    CodeKind = "twofa"
 	CodeReset  CodeKind = "reset"
 )
 

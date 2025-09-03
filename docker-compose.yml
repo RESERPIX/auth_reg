@@ -35,11 +35,15 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ./migrations:/migrations:ro
-    entrypoint: >
-      sh -c 'migrate -path=/migrations
-      -database postgres://news_user:news_pass@postgres:5432/news_auth?sslmode=disable up || true'
+     - ./migrations:/migrations:ro
+    entrypoint: [
+      "migrate",
+      "-path", "/migrations",
+      "-database", "postgres://news_user:news_pass@postgres:5432/news_auth?sslmode=disable",
+      "up"
+    ]
     restart: "no"
+
 
   api:
     build:
@@ -53,6 +57,9 @@ services:
       SMTP_HOST: "mailhog"
       SMTP_PORT: "1025"
       SMTP_FROM: "no-reply@news.local"
+      SMTP_USER: ""          # для MailHog пусто
+      SMTP_PASS: ""          # для MailHog пусто
+      SMTP_INSECURE_SKIP_VERIFY: "true"
 
     depends_on:
       postgres:
